@@ -44,7 +44,7 @@ async function loadHome(){
 }
 async function loadJobs(){
  const {data,error}=await db.from('jobs').select('*').eq('status','active').order('created_at',{ascending:false});
- const box=document.getElementById('jobList');
+ const box=document.getElementById('jobs');
  if(!box)return;
  if(error){box.innerHTML='<div class="job">Unable to load jobs right now.</div>';return;}
  if(!data.length){box.innerHTML='<div class="job">No active jobs available yet.</div>';return;}
@@ -57,7 +57,11 @@ async function saveJob(jobId){
  const {error}=await db.from('saved_jobs').insert({user_id:currentUser.id,job_id:jobId});
  alert(error ? (error.code==='23505'?'Job already saved.':error.message) : 'Job saved successfully.');
 }
-async function logout(){await db.auth.signOut();window.location.href='index.html'}
+async function logout(){
+ const btn=document.querySelector('.logout'); if(btn){btn.disabled=true;btn.textContent='Logging out...';}
+ try{await db.auth.signOut({scope:'local'});}catch(e){console.warn('Logout:',e);}
+ window.location.replace('index.html');
+}
 function filter(){let q=document.getElementById('q').value.toLowerCase();document.querySelectorAll('.job').forEach(x=>x.style.display=x.dataset.s.includes(q)?'block':'none')}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function escapeAttr(s){return String(s).replace(/"/g,'&quot;')}
