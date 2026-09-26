@@ -44,7 +44,17 @@ function msg(id,t,c){const e=document.getElementById(id);e.textContent=t;e.class
 function clearMsg(id){const e=document.getElementById(id);e.style.display='none'}
 function busy(form,on){form.classList.toggle('busy',on)}
 
-(async()=>{const {data}=await db.auth.getSession(); if(data.session) window.location.href='home.html';})();
+(async()=>{
+  const params=new URLSearchParams(location.search);
+  if(params.get('logout')==='1'){
+    try{await db.auth.signOut({scope:'local'});}catch(e){}
+    try{Object.keys(localStorage).filter(k=>k.startsWith('sb-')).forEach(k=>localStorage.removeItem(k));}catch(e){}
+    history.replaceState({},document.title,location.pathname);
+    return;
+  }
+  const {data}=await db.auth.getSession();
+  if(data.session) window.location.href='home.html';
+})();
 
 document.getElementById('login').onsubmit=async e=>{
  e.preventDefault(); clearMsg('lm'); const form=e.currentTarget; busy(form,true);

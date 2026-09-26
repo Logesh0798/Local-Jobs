@@ -25,7 +25,7 @@ header{height:70px;background:#fff;border-bottom:1px solid #e5eaf1;display:flex;
 <button onclick="page('applications',this)">📋 <span>Applications</span></button>
 <button onclick="page('settings',this)">⚙️ <span>System Settings</span></button>
 <button onclick="location.href='home.html'">↩️ <span>Back to User App</span></button>
-<button onclick="logout()">🚪 <span>Logout</span></button>
+<a href="index.html?logout=1" onclick="return logout(event)" style="display:block;text-decoration:none">🚪 <span>Logout</span></a>
 </nav>
 </aside>
 
@@ -157,7 +157,20 @@ async function renderApplications(){
  }
  body.innerHTML=(data||[]).map(a=>'<tr><td>'+esc(profiles[a.user_id]||'')+'</td><td>'+esc(a.jobs?.title||'')+'</td><td>'+esc(a.jobs?.company_name||'')+'</td><td><span class="pill">'+esc(a.status)+'</span></td><td>'+new Date(a.applied_at).toLocaleString()+'</td></tr>').join('');
 }
-async function logout(){await db.auth.signOut();location.href='index.html'}
+async function logout(event){
+  if(event) event.preventDefault();
+  const target='index.html?logout=1';
+  try{
+    if(typeof db!=='undefined' && db?.auth){
+      await Promise.race([
+        db.auth.signOut({scope:'local'}),
+        new Promise(resolve=>setTimeout(resolve,1200))
+      ]);
+    }
+  }catch(e){}
+  try{Object.keys(localStorage).filter(k=>k.startsWith('sb-')).forEach(k=>localStorage.removeItem(k));}catch(e){}
+  window.location.replace(target);
+}
 function closeModal(){document.getElementById('modal').classList.remove('open')}
 function toggle(el){el.classList.toggle('off');toast(el.classList.contains('off')?'Source disabled':'Source enabled')}
 function toast(s){let t=document.getElementById('toast');if(!t)return;t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}

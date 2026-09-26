@@ -2,7 +2,7 @@
 <style>
 body{margin:0;font-family:Arial;background:#f5f7fb;color:#172033}header{height:68px;background:white;border-bottom:1px solid #e6e9ef;display:flex;align-items:center;justify-content:space-between;padding:0 5%;box-sizing:border-box}.logo{font-size:24px;font-weight:800;color:#2457d6}nav{display:flex;gap:22px;align-items:center}nav a{color:#344054;text-decoration:none;font-weight:bold}.logout{padding:9px 14px;border:1px solid #d6dbe5;background:white;border-radius:8px;font-weight:bold}.container{max-width:1150px;margin:auto;padding:35px 20px}.hero{background:linear-gradient(135deg,#2457d6,#4f7ff0);color:white;border-radius:18px;padding:32px;display:flex;justify-content:space-between;align-items:center}.hero h1{margin:0 0 8px;font-size:32px}.search{margin-top:22px;background:white;padding:15px;border-radius:13px;display:flex;gap:10px}.search input{flex:1;padding:13px;border:1px solid #d6dbe5;border-radius:9px}.primary{border:0;background:#2457d6;color:white;padding:12px 18px;border-radius:9px;font-weight:bold}.jobs{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:18px}.job{background:white;border:1px solid #e6e9ef;border-radius:14px;padding:20px}.job h3{margin:0 0 7px}.tag{display:inline-block;background:#eef4ff;color:#2457d6;padding:6px 9px;border-radius:20px;font-size:12px;font-weight:bold;margin:12px 4px 0 0}.profile{margin-top:25px;background:white;border:1px solid #e6e9ef;border-radius:14px;padding:20px}@media(max-width:750px){nav a{display:none}.hero{display:block}.jobs{grid-template-columns:1fr}.search{display:block}.search>*{width:100%;margin-bottom:8px;box-sizing:border-box}}
 </style></head><body>
-<header><div class="logo">JobFinder</div><nav><a href="home.html">Home</a><a href="user.html">My Applications</a><a id="admin" href="admin.html" style="display:none">Admin Panel</a><button class="logout" onclick="logout()">Logout</button></nav></header>
+<header><div class="logo">JobFinder</div><nav><a href="home.html">Home</a><a href="user.html">My Applications</a><a id="admin" href="admin.html" style="display:none">Admin Panel</a><a class="logout" href="index.html?logout=1" onclick="return logout(event)">Logout</a></nav></header>
 <main class="container"><section class="hero"><div><h1 id="welcome">Welcome to JobFinder!</h1><p>Find work-from-home opportunities and manage your applications.</p></div><button class="primary" onclick="document.getElementById('q').focus()">Search Jobs</button></section>
 <div class="search"><input id="q" placeholder="Search jobs, skills or companies..." oninput="filter()"><button class="primary" onclick="filter()">Search</button></div>
 <h2>Recommended Jobs</h2><section class="jobs" id="jobs">
@@ -57,11 +57,21 @@ async function saveJob(jobId){
  const {error}=await db.from('saved_jobs').insert({user_id:currentUser.id,job_id:jobId});
  alert(error ? (error.code==='23505'?'Job already saved.':error.message) : 'Job saved successfully.');
 }
-async function logout(){
- const btn=document.querySelector('.logout'); if(btn){btn.disabled=true;btn.textContent='Logging out...';}
- try{await db.auth.signOut({scope:'local'});}catch(e){console.warn('Logout:',e);}
- window.location.replace('index.html');
+async function logout(event){
+  if(event) event.preventDefault();
+  const target='index.html?logout=1';
+  try{
+    if(typeof db!=='undefined' && db?.auth){
+      await Promise.race([
+        db.auth.signOut({scope:'local'}),
+        new Promise(resolve=>setTimeout(resolve,1200))
+      ]);
+    }
+  }catch(e){}
+  try{Object.keys(localStorage).filter(k=>k.startsWith('sb-')).forEach(k=>localStorage.removeItem(k));}catch(e){}
+  window.location.replace(target);
 }
+
 function filter(){let q=document.getElementById('q').value.toLowerCase();document.querySelectorAll('.job').forEach(x=>x.style.display=x.dataset.s.includes(q)?'block':'none')}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function escapeAttr(s){return String(s).replace(/"/g,'&quot;')}
