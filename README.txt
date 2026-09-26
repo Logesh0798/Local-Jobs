@@ -1,22 +1,28 @@
-JobFinder V7 - GitHub Pages Compatible
+JobFinder Combined V8 - GitHub Pages UI Fix
+
+This version replaces the basic Super Admin placeholder with a full front-end admin dashboard.
 
 Files:
-- index.html  Login/Register page (entry page)
-- home.html   User home page
-- user.html   My Applications page
-- admin.html  Super Admin page
+- index.html: Login/Register entry
+- login.html: compatibility copy
+- home.html: User dashboard
+- user.html: My Applications
+- admin.html: Super Admin dashboard with Users, Job Management, Job Sources,
+  Applications, System Settings and Logout.
+
+Upload all files to the root of the Local-Jobs repository and keep GitHub Pages:
+main branch / (root).
+
+Live URL:
+https://logesh0798.github.io/Local-Jobs/
 
 Demo Super Admin:
-Email: admin@jobfinder.local
-Password: Admin@123
+admin@jobfinder.local / Admin@123
 
 Demo User:
-Email: user@jobfinder.local
-Password: User@123
+user@jobfinder.local / User@123
 
-Deployment:
-Upload all files to the repository root and ensure the entry file is named exactly index.html (lowercase).
-GitHub Pages settings: Deploy from a branch -> main -> /(root).
-
-Important:
-This is a front-end prototype. Registration data and sessions are stored in browser localStorage and are not suitable for production authentication.
+IMPORTANT:
+This remains a front-end prototype. Registration, sessions and admin changes use browser
+localStorage. Do not use it for real customer accounts until secure authentication and
+a real server database are connected.
