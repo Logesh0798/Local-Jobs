@@ -1,28 +1,33 @@
-JobFinder Combined V8 - GitHub Pages UI Fix
+JobFinder Combined V9 - Supabase Backend
 
-This version replaces the basic Super Admin placeholder with a full front-end admin dashboard.
-
-Files:
-- index.html: Login/Register entry
-- login.html: compatibility copy
-- home.html: User dashboard
-- user.html: My Applications
-- admin.html: Super Admin dashboard with Users, Job Management, Job Sources,
-  Applications, System Settings and Logout.
-
-Upload all files to the root of the Local-Jobs repository and keep GitHub Pages:
-main branch / (root).
-
-Live URL:
+Live frontend:
 https://logesh0798.github.io/Local-Jobs/
 
-Demo Super Admin:
-admin@jobfinder.local / Admin@123
+Backend:
+Supabase Authentication + PostgreSQL + Row Level Security.
 
-Demo User:
-user@jobfinder.local / User@123
+V9 changes:
+- Real Supabase email/password authentication.
+- Registration creates a real Supabase Auth user and profile.
+- No localStorage password storage.
+- Home loads the signed-in user's real profile.
+- Home loads active jobs from the jobs table.
+- Saved jobs use the saved_jobs table.
+- My Applications reads the applications table.
+- Super Admin access is controlled by profiles.role = 'admin'.
+- Admin Users reads profiles.
+- Admin Jobs reads/creates/deactivates jobs.
+- Admin Applications reads applications.
 
-IMPORTANT:
-This remains a front-end prototype. Registration, sessions and admin changes use browser
-localStorage. Do not use it for real customer accounts until secure authentication and
-a real server database are connected.
+Important:
+- The browser uses the Supabase publishable key. This key is intended for client applications when RLS is correctly configured.
+- Never expose a Supabase secret/service_role key.
+- Do not store passwords in localStorage.
+- Email confirmation should be enabled before public launch.
+- Admin user creation for other people should eventually use a secure server/Edge Function; the browser must not receive a secret/service_role key.
+
+Required Supabase setup:
+- profiles, jobs, applications, saved_jobs tables created.
+- RLS policies created.
+- Email provider enabled.
+- Your Super Admin user's profiles.role set to 'admin'.

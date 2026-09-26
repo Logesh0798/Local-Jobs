@@ -68,75 +68,100 @@ header{height:70px;background:#fff;border-bottom:1px solid #e5eaf1;display:flex;
 
 <div id="modal" class="modal"><div class="dialog"><button class="close" onclick="closeModal()">×</button><h2 id="modalTitle">Add User</h2><div id="modalBody"></div></div></div><div id="toast" class="toast"></div>
 
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const session=JSON.parse(localStorage.getItem('jfSession')||'null');
-if(!session||session.role!=='super_admin'){location.href='index.html'}
-else{document.getElementById('topUser').textContent='🛡️ '+(session.name||'Super Admin')+' · '+session.email}
+const SUPABASE_URL='https://hannumkwlfjpmajxzvjr.supabase.co', SUPABASE_KEY='sb_publishable_kam_0fSdNC8XEWbj-ZvVOQ_g8tYkRJJ';
+const {createClient}=supabase, db=createClient(SUPABASE_URL,SUPABASE_KEY);
+let adminSession=null, adminProfile=null;
 
-const demoUsers=[
-{name:'Super Admin',email:'admin@jobfinder.local',role:'Super Admin',workType:'All access',status:'Active'},
-{name:'Demo User',email:'user@jobfinder.local',role:'Job Seeker',workType:'Work From Home',status:'Active'}
-];
-let jobs=JSON.parse(localStorage.getItem('jfAdminJobs')||'null')||[
-{title:'Data Entry Specialist',company:'Demo Company',type:'Work From Home',status:'Published'},
-{title:'Customer Support Executive',company:'Remote Company',type:'Remote',status:'Published'},
-{title:'Chat Support Executive',company:'Online Services',type:'Remote',status:'Published'},
-{title:'Transcription Executive',company:'Digital Services',type:'Work From Home',status:'Published'}
-];
-
-function getUsers(){
- const registered=JSON.parse(localStorage.getItem('jfUsers')||'[]');
- const mapped=registered.map(u=>({name:u.name,email:u.email,role:'Job Seeker',workType:u.workType||'Not specified',status:'Active'}));
- const all=[...demoUsers,...mapped];
- const seen=new Set(); return all.filter(u=>{if(seen.has(u.email))return false;seen.add(u.email);return true});
+async function initAdmin(){
+ const {data:{session}}=await db.auth.getSession();
+ if(!session){location.href='index.html';return;}
+ adminSession=session;
+ const {data:{user}}=await db.auth.getUser();
+ const {data:profile,error}=await db.from('profiles').select('*').eq('id',user.id).single();
+ if(error||!profile||profile.role!=='admin'){await db.auth.signOut();location.href='index.html';return;}
+ adminProfile=profile;
+ const top=document.getElementById('topUser'); if(top)top.textContent='🛡️ '+(profile.full_name||'Super Admin')+' · '+user.email;
+ await refreshDashboard();
+ renderUsers();
+ renderJobs();
+ renderApplications();
 }
-function updateCounts(){document.getElementById('userCount').textContent=getUsers().length;document.getElementById('jobCount').textContent=jobs.length}
+
+async function refreshDashboard(){
+ const [{count:uc},{count:jc},{count:ac}]=await Promise.all([
+   db.from('profiles').select('*',{count:'exact',head:true}),
+   db.from('jobs').select('*',{count:'exact',head:true}),
+   db.from('applications').select('*',{count:'exact',head:true})
+ ]);
+ if(document.getElementById('userCount'))document.getElementById('userCount').textContent=uc??0;
+ if(document.getElementById('jobCount'))document.getElementById('jobCount').textContent=jc??0;
+ if(document.getElementById('applicationCount'))document.getElementById('applicationCount').textContent=ac??0;
+}
+
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function page(id,btn){
  document.querySelectorAll('.pagepart').forEach(x=>x.classList.remove('active'));
- const target=document.getElementById(id); if(target)target.classList.add('active');
+ const target=document.getElementById(id);if(target)target.classList.add('active');
  if(btn){document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));btn.classList.add('active')}
- if(id==='users')renderUsers(); if(id==='jobs')renderAdminJobs(); updateCounts();
+ if(id==='users')renderUsers();
+ if(id==='jobs')renderJobs();
+ if(id==='applications')renderApplications();
+ refreshDashboard();
 }
-function renderUsers(){
+async function renderUsers(){
  const q=(document.getElementById('userSearch')?.value||'').toLowerCase();
- document.getElementById('usersBody').innerHTML=getUsers().filter(u=>(u.name+u.email+u.role+u.workType).toLowerCase().includes(q)).map(u=>
- `<tr><td><b>${escapeHtml(u.name)}</b></td><td>${escapeHtml(u.email)}</td><td><span class="pill">${escapeHtml(u.role)}</span></td><td>${escapeHtml(u.workType)}</td><td><span class="pill green">${u.status}</span></td></tr>`).join('');
+ const {data,error}=await db.from('profiles').select('id,full_name,mobile,work_type,role,created_at').order('created_at',{ascending:false});
+ const body=document.getElementById('usersBody'); if(!body)return;
+ if(error){body.innerHTML='<tr><td colspan="5">Unable to load users.</td></tr>';return;}
+ body.innerHTML=data.filter(u=>(u.full_name+' '+u.work_type+' '+u.role+' '+(u.mobile||'')).toLowerCase().includes(q)).map(u=>
+ '<tr><td><b>'+esc(u.full_name)+'</b></td><td>'+esc(u.mobile||'')+'</td><td><span class="pill">'+esc(u.role)+'</span></td><td>'+esc(u.work_type||'Not specified')+'</td><td><span class="pill green">Active</span></td></tr>').join('');
 }
-function renderAdminJobs(){
+async function renderJobs(){
  const q=(document.getElementById('jobSearch')?.value||'').toLowerCase();
- document.getElementById('jobsBody').innerHTML=jobs.filter(j=>(j.title+j.company+j.type).toLowerCase().includes(q)).map((j,i)=>
- `<tr><td><b>${escapeHtml(j.title)}</b></td><td>${escapeHtml(j.company)}</td><td>${escapeHtml(j.type)}</td><td><span class="pill green">${escapeHtml(j.status)}</span></td><td><button class="btn outline" onclick="editJob(${i})">Edit</button> <button class="btn danger" onclick="removeJob(${i})">Remove</button></td></tr>`).join('');
+ const {data,error}=await db.from('jobs').select('*').order('created_at',{ascending:false});
+ const body=document.getElementById('jobsBody');if(!body)return;
+ if(error){body.innerHTML='<tr><td colspan="5">Unable to load jobs.</td></tr>';return;}
+ body.innerHTML=data.filter(j=>(j.title+' '+j.company_name+' '+(j.work_type||'')).toLowerCase().includes(q)).map(j=>
+ '<tr><td><b>'+esc(j.title)+'</b></td><td>'+esc(j.company_name)+'</td><td>'+esc(j.work_type||'')+'</td><td><span class="pill '+(j.status==='active'?'green':'')+'">'+esc(j.status)+'</span></td><td><button class="btn danger" onclick="removeJob('+j.id+')">Remove</button></td></tr>').join('');
 }
-function openUser(){
- document.getElementById('modalTitle').textContent='Add Job Seeker';
- document.getElementById('modalBody').innerHTML=`<div class="form"><label>Full Name<input id="newName"></label><label>Email<input id="newEmail" type="email"></label><label>Work Type<select id="newWork"><option>Work From Home</option><option>Remote</option><option>Hybrid</option><option>Office</option></select></label><button class="btn" onclick="addUser()">Create User</button></div>`;
- document.getElementById('modal').classList.add('open')
-}
-function addUser(){
- const name=document.getElementById('newName').value.trim(),email=document.getElementById('newEmail').value.trim().toLowerCase(),workType=document.getElementById('newWork').value;
- if(!name||!email){toast('Name and email are required');return}
- let arr=JSON.parse(localStorage.getItem('jfUsers')||'[]');
- if(arr.some(x=>x.email===email)||demoUsers.some(x=>x.email===email)){toast('Email already exists');return}
- arr.push({name,email,mobile:'',workType,password:'Temp@123',role:'user'});localStorage.setItem('jfUsers',JSON.stringify(arr));
- closeModal();renderUsers();updateCounts();toast('User created')
-}
-function openJob(){
+async function openJob(){
  document.getElementById('modalTitle').textContent='Add Job Listing';
- document.getElementById('modalBody').innerHTML=`<div class="form"><label>Job Title<input id="newJob"></label><label>Company<input id="newCompany"></label><label>Work Type<select id="newType"><option>Work From Home</option><option>Remote</option><option>Hybrid</option></select></label><button class="btn" onclick="addJob()">Publish Job</button></div>`;
- document.getElementById('modal').classList.add('open')
+ document.getElementById('modalBody').innerHTML='<div class="form"><label>Job Title<input id="newJob"></label><label>Company<input id="newCompany"></label><label>Location<input id="newLocation" value="India"></label><label>Work Type<select id="newType"><option>Work From Home</option><option>Remote</option><option>Hybrid</option><option>Office</option></select></label><label>Salary<input id="newSalary"></label><label>Job URL<input id="newUrl" placeholder="https://..."></label><label>Description<textarea id="newDesc"></textarea></label><button class="btn" onclick="addJob()">Publish Job</button></div>';
+ document.getElementById('modal').classList.add('open');
 }
-function addJob(){
- const title=document.getElementById('newJob').value.trim(),company=document.getElementById('newCompany').value.trim(),type=document.getElementById('newType').value;
- if(!title||!company){toast('Job title and company are required');return}
- jobs.push({title,company,type,status:'Published'});localStorage.setItem('jfAdminJobs',JSON.stringify(jobs));closeModal();renderAdminJobs();updateCounts();toast('Job listing added')
+async function addJob(){
+ const title=document.getElementById('newJob').value.trim(),company=document.getElementById('newCompany').value.trim();
+ if(!title||!company){toast('Job title and company are required');return;}
+ const payload={title,company_name:company,location:document.getElementById('newLocation').value.trim(),work_type:document.getElementById('newType').value,salary:document.getElementById('newSalary').value.trim(),job_url:document.getElementById('newUrl').value.trim()||'#',description:document.getElementById('newDesc').value.trim(),status:'active'};
+ const {error}=await db.from('jobs').insert(payload);
+ if(error){toast(error.message);return;}
+ closeModal();await renderJobs();await refreshDashboard();toast('Job listing added');
 }
-function editJob(i){toast('Edit form can be connected to the database in the next phase')}
-function removeJob(i){if(confirm('Remove this job listing?')){jobs.splice(i,1);localStorage.setItem('jfAdminJobs',JSON.stringify(jobs));renderAdminJobs();updateCounts();toast('Job removed')}}
+async function removeJob(id){
+ if(!confirm('Remove this job listing?'))return;
+ const {error}=await db.from('jobs').update({status:'inactive'}).eq('id',id);
+ if(error)toast(error.message);else{await renderJobs();await refreshDashboard();toast('Job removed');}
+}
+async function renderApplications(){
+ const body=document.getElementById('applicationsBody');if(!body)return;
+ const {data,error}=await db.from('applications').select('id,user_id,job_id,status,applied_at,notes,jobs(title,company_name)').order('applied_at',{ascending:false});
+ if(error){body.innerHTML='<tr><td colspan="5">Unable to load applications.</td></tr>';return;}
+ const ids=[...new Set((data||[]).map(a=>a.user_id).filter(Boolean))];
+ let profiles={};
+ if(ids.length){
+   const {data:ps}=await db.from('profiles').select('id,full_name').in('id',ids);
+   (ps||[]).forEach(x=>profiles[x.id]=x.full_name);
+ }
+ body.innerHTML=(data||[]).map(a=>'<tr><td>'+esc(profiles[a.user_id]||'')+'</td><td>'+esc(a.jobs?.title||'')+'</td><td>'+esc(a.jobs?.company_name||'')+'</td><td><span class="pill">'+esc(a.status)+'</span></td><td>'+new Date(a.applied_at).toLocaleString()+'</td></tr>').join('');
+}
+async function logout(){await db.auth.signOut();location.href='index.html'}
 function closeModal(){document.getElementById('modal').classList.remove('open')}
 function toggle(el){el.classList.toggle('off');toast(el.classList.contains('off')?'Source disabled':'Source enabled')}
-function toast(s){let t=document.getElementById('toast');t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
-function logout(){localStorage.removeItem('jfSession');location.href='index.html'}
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
-renderUsers();renderAdminJobs();updateCounts();
+function toast(s){let t=document.getElementById('toast');if(!t)return;t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
+initAdmin();
 </script>
+
 </body></html>

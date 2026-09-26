@@ -14,14 +14,53 @@ body{margin:0;font-family:Arial;background:#f5f7fb;color:#172033}header{height:6
 <span id="info"></span>
 <div id="details" style="margin-top:14px;line-height:1.8;color:#475467"></div>
 </div></main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-let s=JSON.parse(localStorage.getItem('jfSession')||'null');if(!s)location.href='index.html';else{welcome.textContent='Welcome, '+(s.name||'User')+'!';name.textContent=s.name||'User';
-info.textContent=(s.workType||'Job Seeker')+' • '+s.email;
-document.getElementById('details').innerHTML=
-  '<strong>Full Name:</strong> '+(s.name||'')+'<br>'+
-  '<strong>Email:</strong> '+(s.email||'')+'<br>'+
-  '<strong>Mobile:</strong> '+(s.mobile||'Not provided')+'<br>'+
-  '<strong>Preferred Work Type:</strong> '+(s.workType||'Not specified');
-if(s.role==='super_admin')admin.style.display='inline'}
-function logout(){localStorage.removeItem('jfSession');location.href='index.html'}function filter(){let q=document.getElementById('q').value.toLowerCase();document.querySelectorAll('.job').forEach(x=>x.style.display=x.dataset.s.includes(q)?'block':'none')}function save(n){let a=JSON.parse(localStorage.getItem('jfSavedJobs')||'[]');if(!a.includes(n))a.push(n);localStorage.setItem('jfSavedJobs',JSON.stringify(a));alert(n+' saved successfully.')}
-</script></body></html>
+const SUPABASE_URL = 'https://hannumkwlfjpmajxzvjr.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_kam_0fSdNC8XEWbj-ZvVOQ_g8tYkRJJ';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null, currentProfileData = null;
+
+async function loadHome(){
+ const {data:{session}} = await db.auth.getSession();
+ if(!session){window.location.href='index.html';return;}
+ const {data:{user}} = await db.auth.getUser();
+ currentUser=user;
+ const {data:profile,error} = await db.from('profiles').select('*').eq('id',user.id).single();
+ if(error || !profile){document.getElementById('welcome').textContent='Welcome!';return;}
+ currentProfileData=profile;
+ document.getElementById('welcome').textContent='Welcome, '+(profile.full_name||'User')+'!';
+ document.getElementById('name').textContent=profile.full_name||'User';
+ document.getElementById('info').textContent=(profile.work_type||'Job Seeker')+' • '+user.email;
+ document.getElementById('details').innerHTML='<strong>Full Name:</strong> '+escapeHtml(profile.full_name||'')+'<br>'+
+ '<strong>Email:</strong> '+escapeHtml(user.email||'')+'<br>'+
+ '<strong>Mobile:</strong> '+escapeHtml(profile.mobile||'Not provided')+'<br>'+
+ '<strong>Preferred Work Type:</strong> '+escapeHtml(profile.work_type||'Not specified');
+ if(profile.role==='admin') document.getElementById('admin').style.display='inline';
+ await loadJobs();
+}
+async function loadJobs(){
+ const {data,error}=await db.from('jobs').select('*').eq('status','active').order('created_at',{ascending:false});
+ const box=document.getElementById('jobList');
+ if(!box)return;
+ if(error){box.innerHTML='<div class="job">Unable to load jobs right now.</div>';return;}
+ if(!data.length){box.innerHTML='<div class="job">No active jobs available yet.</div>';return;}
+ box.innerHTML=data.map(j=>'<div class="job" data-s="'+escapeHtml((j.title+' '+j.company_name+' '+(j.location||'')+' '+(j.work_type||'')).toLowerCase())">'+
+ '<h3>'+escapeHtml(j.title)+'</h3><div>'+escapeHtml(j.company_name)+'</div><div>'+escapeHtml(j.location||'')+' • '+escapeHtml(j.work_type||'')+'</div>'+
+ '<div><strong>'+escapeHtml(j.salary||'Salary not specified')+'</strong></div>'+
+ '<button onclick="saveJob('+j.id+')">Save</button> <a href="'+escapeAttr(j.job_url||'#')+'" target="_blank" rel="noopener">Apply</a></div>').join('');
+}
+async function saveJob(jobId){
+ const {error}=await db.from('saved_jobs').insert({user_id:currentUser.id,job_id:jobId});
+ alert(error ? (error.code==='23505'?'Job already saved.':error.message) : 'Job saved successfully.');
+}
+async function logout(){await db.auth.signOut();window.location.href='index.html'}
+function filter(){let q=document.getElementById('q').value.toLowerCase();document.querySelectorAll('.job').forEach(x=>x.style.display=x.dataset.s.includes(q)?'block':'none')}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function escapeAttr(s){return String(s).replace(/"/g,'&quot;')}
+loadHome();
+</script>
+</body></html>
